@@ -201,11 +201,16 @@ public class KestrelConfigurationLoaderTests
     {
         var serverOptions = CreateServerOptions();
         var testCertPath = TestResources.GetCertPath("leaf.com.crt");
+        var testPfxPath = TestResources.GetCertPath("aspnetdevcert.pfx");
         var ran1 = false;
         var config = new ConfigurationBuilder().AddInMemoryCollection(new[]
         {
             new KeyValuePair<string, string>("Endpoints:End1:Url", "https://*:5001"),
-            new KeyValuePair<string,string>("Certificates:Default:Path", testCertPath)
+            new KeyValuePair<string, string>("Certificates:Default:Path", testCertPath),
+
+            new KeyValuePair<string, string>("Endpoints:End2:Url", "https://*:5002"),
+            new KeyValuePair<string, string>("Endpoints:End2:Certificate:Path", testPfxPath),
+            new KeyValuePair<string, string>("Endpoints:End2:Certificate:Password", "testPassword"),
         }).Build();
 
         serverOptions.Configure(config)
@@ -216,7 +221,15 @@ public class KestrelConfigurationLoaderTests
                 Assert.NotNull(opt.HttpsOptions.ServerCertificate);
                 Assert.NotNull(opt.HttpsOptions.ServerCertificateChain);
                 Assert.Equal(2, opt.HttpsOptions.ServerCertificateChain.Count);
-            }).Load();
+            })
+            .Endpoint("End2", opt =>
+            {
+                Assert.True(opt.IsHttps);
+                Assert.NotNull(opt.HttpsOptions.ServerCertificate);
+                Assert.NotNull(opt.HttpsOptions.ServerCertificateChain);
+                Assert.Single(opt.HttpsOptions.ServerCertificateChain);
+            })
+            .Load();
 
         Assert.True(ran1);
 

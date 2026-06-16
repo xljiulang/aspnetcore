@@ -39,15 +39,26 @@ internal sealed class CertificateConfigLoader : ICertificateConfigLoader
         {
             var certificatePath = Path.Combine(HostEnvironment.ContentRootPath, certInfo.Path!);
             var fullChain = new X509Certificate2Collection();
-            fullChain.ImportFromPemFile(certificatePath);
+            var contentType = X509Certificate2.GetCertContentType(certificatePath);
+
+            if (contentType == X509ContentType.Pfx)
+            {
+                var certData = File.ReadAllBytes(certificatePath);
+                fullChain.Import(certData, certInfo.Password, X509KeyStorageFlags.EphemeralKeySet);
+            }
+            else if (contentType == X509ContentType.Cert)
+            {
+                fullChain.ImportFromPemFile(certificatePath);
+            }
 
             if (certInfo.KeyPath != null)
             {
                 var certificateKeyPath = Path.Combine(HostEnvironment.ContentRootPath, certInfo.KeyPath);
-                var certificate = GetCertificate(certificatePath);
 
-                if (certificate != null)
+                var certificate = default(X509Certificate2);
+                if (contentType == X509ContentType.Cert)
                 {
+                    certificate = new X509Certificate2(certificatePath);
                     certificate = LoadCertificateKey(certificate, certificateKeyPath, certInfo.Password);
                 }
                 else
@@ -258,16 +269,6 @@ internal sealed class CertificateConfigLoader : ICertificateConfigLoader
     private static InvalidOperationException CreateErrorGettingPrivateKeyException(string keyPath, Exception ex)
     {
         return new InvalidOperationException($"Error getting private key from '{keyPath}'.", ex);
-    }
-
-    private static X509Certificate2? GetCertificate(string certificatePath)
-    {
-        if (X509Certificate2.GetCertContentType(certificatePath) == X509ContentType.Cert)
-        {
-            return new X509Certificate2(certificatePath);
-        }
-
-        return null;
     }
 
     private static void ImportKeyFromFile(AsymmetricAlgorithm asymmetricAlgorithm, string keyText, string? password)
